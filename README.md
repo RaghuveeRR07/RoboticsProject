@@ -1,8 +1,46 @@
 # RoboticsProject
-Robot calibration involves identifying the robot DH parameters which may diverge from the designed
+# Path Planning using Potential Field (RP Robot)
 
-values as mentioned (interpreted) in the robot specifications. This is an example of parameter identifi-
-cation or estimation approach given the input measurements. There needs to be a suitable strategy to
+## 📌 Overview
 
-identify these parameters. Existing literature [Mooring et al., 1991, Roth et al., 1987] talks about the
-possible approaches.
+This project implements path planning for a 2-link RP robot using the potential field method. The objective is to move the robot from an initial configuration to a final configuration while avoiding an obstacle.
+
+---
+
+## ⚙️ Methodology
+
+The approach is based on artificial potential fields:
+
+- **Attractive Force**: Pulls the robot toward the goal
+- **Repulsive Force**: Pushes the robot away from obstacles
+- **Jacobian Transpose**: Converts workspace forces to joint torques
+- **Gradient Descent**: Updates joint configuration iteratively
+
+---
+
+## 📐 Mathematical Model
+
+End-effector position:
+
+o2(q) = [ d*sin(theta), -d*cos(theta) ]
+
+Total force:
+
+f = f_att + f_rep
+
+Joint torque:
+
+tau = J^T * f
+
+Update rule:
+
+q_next = q + alpha * tau / ||tau||
+
+---
+
+## 🚀 How to Run
+
+1. Install dependencies:
+
+```bash
+pip install -r requirements.txt
