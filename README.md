@@ -1,46 +1,76 @@
-# RoboticsProject
-# Path Planning using Potential Field (RP Robot)
+# Identification of DH Parameters for Calibration of Cooperative Robots
+
+## 👨‍💻 Author
+**Raghuveer Kulkarni**  
+Roll Number: **B23ES1020**  
+Indian Institute of Technology Jodhpur  
+
+---
 
 ## 📌 Overview
 
-This project implements path planning for a 2-link RP robot using the potential field method. The objective is to move the robot from an initial configuration to a final configuration while avoiding an obstacle.
+This project focuses on the calibration of cooperative robotic systems by identifying accurate Denavit-Hartenberg (DH) parameters. When multiple robots work together, inconsistencies in their internal models can lead to errors in positioning and coordination.
+
+The goal of this project is to develop a method that aligns the coordinate frames of two robots by minimizing the difference in their computed end-effector positions.
+
+---
+
+## 🧠 Key Idea
+
+The project is based on the concept of **model correction through optimization**.
+
+- A **true robot** represents the correct kinematic model  
+- An **estimated robot** starts with incorrect parameters  
+- The difference between their end-effector positions is treated as **error**  
+- This error is minimized by updating the model parameters  
+
+Over time, the estimated robot aligns with the true robot, achieving calibration.
 
 ---
 
 ## ⚙️ Methodology
 
-The approach is based on artificial potential fields:
+### 1. Kinematic Modeling
+- Robots are modeled using DH parameters (simplified as link lengths in this implementation)
+- Forward kinematics is used to compute end-effector positions
 
-- **Attractive Force**: Pulls the robot toward the goal
-- **Repulsive Force**: Pushes the robot away from obstacles
-- **Jacobian Transpose**: Converts workspace forces to joint torques
-- **Gradient Descent**: Updates joint configuration iteratively
+### 2. Multi-Configuration Sampling
+- Multiple random joint configurations are generated
+- This ensures calibration is valid across different poses
 
----
+### 3. Error Formulation
+\[
+E = \sum \|o_{true}(q) - o_{est}(q)\|^2
+\]
 
-## 📐 Mathematical Model
+- Error is defined as the difference between true and estimated end-effector positions
 
-End-effector position:
-
-o2(q) = [ d*sin(theta), -d*cos(theta) ]
-
-Total force:
-
-f = f_att + f_rep
-
-Joint torque:
-
-tau = J^T * f
-
-Update rule:
-
-q_next = q + alpha * tau / ||tau||
+### 4. Optimization
+- Numerical gradient descent is used
+- Parameters are updated iteratively to reduce error
 
 ---
 
-## 🚀 How to Run
+## 🧪 Simulation
 
-1. Install dependencies:
+A 3D simulation is implemented using Python and Matplotlib:
 
-```bash
-pip install -r requirements.txt
+- 🔵 **Blue Robot** → True model  
+- 🔴 **Red Robot** → Estimated model  
+
+### What happens:
+- Initially, the red robot is misaligned  
+- Over iterations, it updates its parameters  
+- Finally, both robots align  
+
+---
+
+## 📊 Results
+
+- The error decreases over time (shown using convergence plot)
+- The estimated robot gradually matches the true robot
+- Demonstrates successful calibration using optimization
+
+---
+
+## 📁 Project Structure
