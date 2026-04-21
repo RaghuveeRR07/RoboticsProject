@@ -1,70 +1,39 @@
-# ============================================================
-# Cooperative Robot Calibration Simulation (Advanced Version)
-# ------------------------------------------------------------
-# This script demonstrates calibration of a robot model by
-# minimizing error between a true robot and an estimated robot
-# using multiple configurations and optimization.
-# ============================================================
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from mpl_toolkits.mplot3d import Axes3D
 from IPython.display import HTML
 
-# ============================================================
-# 1. PARAMETERS
-# ============================================================
-
-# True robot parameters (ground truth)
+# ---------------- PARAMETERS ----------------
 L_TRUE = np.array([1.0, 1.0, 1.0])
+L_EST = np.array([1.3, 0.7, 1.2]) # Initial guess
 
-# Initial incorrect parameters
-L_EST = np.array([1.3, 0.7, 1.2])
+ALPHA = 0.05  # Increased learning rate for faster visual convergence
+NUM_SAMPLES = 40
+NUM_FRAMES = 100
 
-# Learning rate
-ALPHA = 0.02
+# FIXED samples (for a stable loss landscape)
+np.random.seed(42) # For reproducibility
+Q_SET = np.random.uniform(-np.pi/2, np.pi/2, (NUM_SAMPLES, 3))
 
-# Number of random configurations
-NUM_SAMPLES = 20
+# ---------------- FORWARD KINEMATICS ----------------
+def fk(q, l):
+    """Returns the (x, y) end-effector position."""
+    t1, t2, t3 = q
+    x = (l[0]*np.cos(t1) +
+         l[1]*np.cos(t1+t2) +
+         l[2]*np.cos(t1+t2+t3))
+    y = (l[0]*np.sin(t1) +
+         l[1]*np.sin(t1+t2) +
+         l[2]*np.sin(t1+t2+t3))
+    return np.array([x, y])
 
-# Generate random joint configurations
-Q_SET = np.random.uniform(low=-1.0, high=1.0, size=(NUM_SAMPLES, 3))
-
-
-# ============================================================
-# 2. FORWARD KINEMATICS
-# ============================================================
-
-def forward_kinematics(q, l):
-    """
-    Returns end-effector position for given joint angles and link lengths.
-    """
-    x1 = l[0] * np.cos(q[0])
-    y1 = l[0] * np.sin(q[0])
-
-    x2 = x1 + l[1] * np.cos(q[0] + q[1])
-    y2 = y1 + l[1] * np.sin(q[0] + q[1])
-
-    x3 = x2 + l[2] * np.cos(q[0] + q[1] + q[2])
-    y3 = y2 + l[2] * np.sin(q[0] + q[1] + q[2])
-
-    return np.array([x3, y3, 0])
-
-
-def forward_full(q, l):
-    """
-    Returns all joint positions for visualization.
-    """
-    x1 = l[0] * np.cos(q[0])
-    y1 = l[0] * np.sin(q[0])
-
-    x2 = x1 + l[1] * np.cos(q[0] + q[1])
-    y2 = y1 + l[1] * np.sin(q[0] + q[1])
-
-    x3 = x2 + l[2] * np.cos(q[0] + q[1] + q[2])
-    y3 = y2 + l[2] * np.sin(q[0] + q[1] + q[2])
-
+def fk_full(q, l):
+    """Returns the coordinates of all joints for plotting."""
+    t1, t2, t3 = q
+    x1, y1 = l[0]*np.cos(t1), l[0]*np.sin(t1)
+    x2, y2 = x1 + l[1]*np.cos(t1+t2), y1 + l[1]*np.sin(t1+t2)
+    x3, y3 = x2 + l[2]*np.cos(t1+t2+t3), y2 + l[2]*np.sin(t1+t2+t3)
+    
     return np.array([
         [0, 0, 0],
         [x1, y1, 0],
@@ -72,125 +41,61 @@ def forward_full(q, l):
         [x3, y3, 0]
     ])
 
-
-# ============================================================
-# 3. ERROR FUNCTION
-# ============================================================
-
-def compute_total_error(l_est):
-    """
-    Computes total error across multiple configurations.
-    """
+# ---------------- ERROR + GRADIENT ----------------
+def compute_error_and_grad(l_curr):
+    grad = np.zeros_like(l_curr)
     total_error = 0
 
     for q in Q_SET:
-        p_true = forward_kinematics(q, L_TRUE)
-        p_est  = forward_kinematics(q, l_est)
+        p_true = fk(q, L_TRUE)
+        p_est  = fk(q, l_curr)
+        diff = p_est - p_true
+        total_error += np.sum(diff**2)
 
-        total_error += np.linalg.norm(p_true - p_est) ** 2
+        t1, t2, t3 = q
+        # Analytical gradients: d(Error)/dl_i
+        grad[0] += 2 * diff @ np.array([np.cos(t1), np.sin(t1)])
+        grad[1] += 2 * diff @ np.array([np.cos(t1+t2), np.sin(t1+t2)])
+        grad[2] += 2 * diff @ np.array([np.cos(t1+t2+t3), np.sin(t1+t2+t3)])
 
-    return total_error
+    return total_error / NUM_SAMPLES, grad / NUM_SAMPLES
 
+# ---------------- ANIMATION SETUP ----------------
+fig = plt.figure(figsize=(10, 5))
+ax = fig.add_subplot(121, projection='3d') # 3D Robot view
+ax2 = fig.add_subplot(122)                 # 2D Error plot
 
-# ============================================================
-# 4. PARAMETER UPDATE (GRADIENT DESCENT)
-# ============================================================
-
-def update_parameters(l_est):
-    """
-    Updates estimated parameters using numerical gradient descent.
-    """
-    grad = np.zeros_like(l_est)
-
-    for i in range(len(l_est)):
-        delta = np.zeros_like(l_est)
-        delta[i] = 1e-4
-
-        err1 = compute_total_error(l_est + delta)
-        err2 = compute_total_error(l_est - delta)
-
-        grad[i] = (err1 - err2) / (2e-4)
-
-    return l_est - ALPHA * grad
-
-
-# ============================================================
-# 5. VISUALIZATION
-# ============================================================
-
-def plot_robot(ax, points, color, label):
-    """
-    Plots robot links in 3D.
-    """
-    ax.plot(points[:, 0], points[:, 1], points[:, 2],
-            '-o', color=color, label=label)
-
-
-# ============================================================
-# 6. ANIMATION SETUP
-# ============================================================
-
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-# Select one configuration to visualize
-q_vis = Q_SET[0]
-
-# Store error history
+q_vis = np.array([0.5, 0.8, -0.3]) # Fixed pose for visualization
 error_history = []
-
+l_evolution = L_EST.copy()
 
 def update(frame):
-    """
-    Animation update function.
-    """
-    global L_EST
-
+    global l_evolution
     ax.cla()
-
-    # Update parameters
-    L_EST = update_parameters(L_EST)
-
-    # Compute error
-    err = compute_total_error(L_EST)
+    
+    err, grad = compute_error_and_grad(l_evolution)
+    l_evolution = l_evolution - ALPHA * grad
     error_history.append(err)
 
-    # Compute robot positions
-    p_true = forward_full(q_vis, L_TRUE)
-    p_est  = forward_full(q_vis, L_EST)
+    # Robot Plot
+    p_true = fk_full(q_vis, L_TRUE)
+    p_est  = fk_full(q_vis, l_evolution)
 
-    # Plot robots
-    plot_robot(ax, p_true, 'blue', 'True Robot')
-    plot_robot(ax, p_est, 'red', 'Estimated Robot')
-
-    # Plot end-effectors
-    ax.scatter(*p_true[-1], color='blue', s=60)
-    ax.scatter(*p_est[-1], color='red', s=60)
-
-    # Axis limits
-    ax.set_xlim([-3, 3])
-    ax.set_ylim([-3, 3])
-    ax.set_zlim([-1, 1])
-
-    ax.set_title(f"Calibration | Error: {err:.4f}")
+    ax.plot(p_true[:,0], p_true[:,1], p_true[:,2], 'g-o', linewidth=3, label="True (Goal)")
+    ax.plot(p_est[:,0], p_est[:,1], p_est[:,2], 'r--o', label="Calibrating...")
+    
+    ax.set_xlim([-3, 3]); ax.set_ylim([-3, 3]); ax.set_zlim([-1, 1])
+    ax.set_title(f"Iter: {frame} | Error: {err:.4f}")
     ax.legend()
 
+    # Live Error Plot
+    ax2.cla()
+    ax2.plot(error_history, color='blue')
+    ax2.set_yscale('log') # Log scale helps see convergence
+    ax2.set_title("Mean Squared Error (Log Scale)")
+    ax2.set_xlabel("Iteration")
+    ax2.grid(True)
 
-# Create animation
-anim = FuncAnimation(fig, update, frames=150, interval=100)
-
-# Display animation (Colab/Jupyter)
+anim = FuncAnimation(fig, update, frames=NUM_FRAMES, interval=50, repeat=False)
+plt.close() # Prevents duplicate static plot
 HTML(anim.to_jshtml())
-
-
-# ============================================================
-# 7. ERROR PLOT (OPTIONAL BUT RECOMMENDED)
-# ============================================================
-
-plt.figure()
-plt.plot(error_history)
-plt.title("Error Convergence During Calibration")
-plt.xlabel("Iteration")
-plt.ylabel("Total Error")
-plt.grid()
-plt.show()
