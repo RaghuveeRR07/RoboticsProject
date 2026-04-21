@@ -221,6 +221,4 @@ In practice:
 - Add noise and real-world uncertainties
 - Apply to 6-DOF industrial robots
 
----
 
-## 📁 Project Structure
